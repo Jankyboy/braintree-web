@@ -65,7 +65,7 @@
     "requirejs": "^2.3.6",
     "table": "^5.4.6",
     "tmp": "^0.2.1",
-    "uglify-js": "^3.10.1",
+    "uglify-js": "^3.10.4",
     "unreachable-branch-transform": "0.5.1",
     "watchify": "^3.11.1"
   },
