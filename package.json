@@ -21,7 +21,7 @@
     "@braintree/browser-detection": "1.10.0",
     "@braintree/class-list": "0.2.0",
     "@braintree/event-emitter": "0.4.1",
-    "@braintree/extended-promise": "0.4.0",
+    "@braintree/extended-promise": "0.4.1",
     "@braintree/iframer": "1.1.0",
     "@braintree/sanitize-url": "4.1.1",
     "@braintree/uuid": "0.1.0",
