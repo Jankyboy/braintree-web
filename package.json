@@ -43,7 +43,7 @@
     "dotenv": "^8.1.0",
     "envify": "4.1.0",
     "es6-shim": "^0.35.5",
-    "eslint": "^7.6.0",
+    "eslint": "^7.9.0",
     "eslint-config-braintree": "^4.0.0",
     "gulp": "^4.0.2",
     "gulp-envify": "tomashanacek/gulp-envify#37d97bca9073ec4161957c69d774f1870fdb6e57",
