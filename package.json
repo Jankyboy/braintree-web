@@ -52,7 +52,7 @@
     "gulp-rename": "^2.0.0",
     "gulp-replace": "1.0.0",
     "gzip-size": "^5.1.1",
-    "jest": "^26.3.0",
+    "jest": "^26.4.2",
     "jsdoc": "^3.6.5",
     "jsdoc-template": "braintree/jsdoc-template#3.2.0",
     "loose-envify": "^1.0.0",
