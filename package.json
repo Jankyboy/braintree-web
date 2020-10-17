@@ -58,7 +58,7 @@
     "loose-envify": "^1.0.0",
     "merge-stream": "^2.0.0",
     "mkdirp": "^1.0.4",
-    "mocha": "^8.1.1",
+    "mocha": "^8.2.0",
     "mock-xmlhttprequest": "^6.2.0",
     "posix-getopt": "1.2.0",
     "readline-sync": "^1.4.10",
