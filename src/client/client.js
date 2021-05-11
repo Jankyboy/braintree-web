@@ -312,9 +312,11 @@ Client.prototype.request = function (options, callback) {
       requestOptions.method = 'post';
       requestOptions.data = assign({
         clientSdkMetadata: {
+          platform: self._configuration.analyticsMetadata.platform,
           source: self._configuration.analyticsMetadata.source,
           integration: self._configuration.analyticsMetadata.integration,
-          sessionId: self._configuration.analyticsMetadata.sessionId
+          sessionId: self._configuration.analyticsMetadata.sessionId,
+          version: VERSION
         }
       }, options.data);
 
@@ -389,6 +391,8 @@ function formatRequestError(status, err) { // eslint-disable-line consistent-ret
 
   if (status === -1) {
     requestError = new BraintreeError(errors.CLIENT_REQUEST_TIMEOUT);
+  } else if (status === 401) {
+    requestError = new BraintreeError(errors.CLIENT_AUTHORIZATION_INVALID);
   } else if (status === 403) {
     requestError = new BraintreeError(errors.CLIENT_AUTHORIZATION_INSUFFICIENT);
   } else if (status === 429) {

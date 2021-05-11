@@ -1,7 +1,7 @@
 'use strict';
 
 jest.mock('../../../src/lib/basic-component-verification');
-jest.mock('../../../src/lib/bus');
+jest.mock('framebus');
 jest.mock('../../../src/lib/create-assets-url');
 jest.mock('../../../src/lib/create-deferred-client');
 
@@ -166,6 +166,17 @@ describe('dataCollector', () => {
         expect(actual.correlation_id).toBe(mockPPid);
         expect(actual.device_session_id).toBe(mockData.deviceData.device_session_id);
         expect(actual.fraud_merchant_id).toBe(mockData.deviceData.fraud_merchant_id);
+      });
+    });
+
+    it('sets up fraudnet with the gateway environment', () => {
+      testContext.configuration.gatewayConfiguration.environment = 'custom-environment-value';
+
+      return dataCollector.create({
+        client: testContext.client,
+        paypal: true
+      }).then(() => {
+        expect(fraudnet.setup).toBeCalledWith('custom-environment-value');
       });
     });
 

@@ -19,6 +19,7 @@ describe('PayPalCheckout', () => {
     testContext = {};
     testContext.configuration = fake.configuration();
 
+    testContext.configuration.authorizationFingerprint = 'auth-fingerprint';
     testContext.configuration.gatewayConfiguration.paypalEnabled = true;
     testContext.configuration.gatewayConfiguration.paypal.environmentNoNetwork = false;
     testContext.configuration.gatewayConfiguration.paypal.clientId = 'client-id';
@@ -40,6 +41,7 @@ describe('PayPalCheckout', () => {
         PayerID: 'payer-id',
         paymentId: 'payment-id'
       })),
+      teardown: jest.fn().mockResolvedValue(),
       redirect: jest.fn(),
       _serviceId: 'service-id'
     };
@@ -224,6 +226,48 @@ describe('PayPalCheckout', () => {
         expect(type).toBe(BraintreeError.types.NETWORK);
         expect(code).toBe('CLIENT_REQUEST_ERROR');
         expect(message).toBe('There was a problem with your request.');
+      });
+    });
+
+    it('saves intent when passed', () => {
+      testContext.client.request.mockResolvedValue({
+        agreementSetup: {
+          tokenId: 'stub'
+        },
+        paymentResource: {
+          paymentToken: 'stub',
+          redirectUrl: 'https://example.com?foo=bar&EC-token&foo2=bar2'
+        }
+      });
+
+      return testContext.paypalCheckout.createPayment({
+        flow: 'vault',
+        intent: 'saved intent'
+      }).then(() => {
+        expect(testContext.paypalCheckout.intentFromCreatePayment).toBe('saved intent');
+      });
+    });
+
+    it('removes intent on additonal createPayment calls', () => {
+      testContext.client.request.mockResolvedValue({
+        agreementSetup: {
+          tokenId: 'stub'
+        },
+        paymentResource: {
+          paymentToken: 'stub',
+          redirectUrl: 'https://example.com?foo=bar&EC-token&foo2=bar2'
+        }
+      });
+
+      return testContext.paypalCheckout.createPayment({
+        flow: 'vault',
+        intent: 'saved intent'
+      }).then(() => {
+        expect(testContext.paypalCheckout.intentFromCreatePayment).toBe('saved intent');
+
+        return testContext.paypalCheckout.createPayment({ flow: 'vault' });
+      }).then(() => {
+        expect(testContext.paypalCheckout.intentFromCreatePayment).toBeFalsy();
       });
     });
 
@@ -813,7 +857,7 @@ describe('PayPalCheckout', () => {
       testContext.configuration.gatewayConfiguration.paypalEnabled = false;
 
       await paypalCheckout._initialize({
-        authorization: 'fake-auth'
+        authorization: 'sandbox_fake_tokenization_key'
       });
 
       await expect(paypalCheckout.startVaultInitiatedCheckout(testContext.options)).rejects.toMatchObject({
@@ -830,7 +874,7 @@ describe('PayPalCheckout', () => {
       jest.useFakeTimers();
 
       await paypalCheckout._initialize({
-        authorization: 'fake-auth'
+        authorization: 'sandbox_fake_tokenization_key'
       });
 
       const promise = paypalCheckout.startVaultInitiatedCheckout(testContext.options);
@@ -1081,6 +1125,24 @@ describe('PayPalCheckout', () => {
 
       return testContext.paypalCheckout.tokenizePayment({}).catch(err => {
         expect(err).toBe(btError);
+      });
+    });
+
+    it('includes intent from createPayment', () => {
+      testContext.client.request.mockResolvedValue({
+        paypalAccounts: [{ nonce: 'nonce', type: 'PayPal' }]
+      });
+
+      testContext.paypalCheckout.intentFromCreatePayment = 'saved intent';
+
+      return testContext.paypalCheckout.tokenizePayment({}).then(() => {
+        expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+          data: {
+            paypalAccount: {
+              intent: 'saved intent'
+            }
+          }
+        });
       });
     });
 
@@ -1353,6 +1415,26 @@ describe('PayPalCheckout', () => {
       });
     });
 
+    it('does not validate if merchant is using the pay later flow', () => {
+      testContext.configuration.authorizationType = 'CLIENT_TOKEN';
+
+      return testContext.paypalCheckout.tokenizePayment({
+        billingToken: 'token',
+        paymentID: 'payment-id'
+      }).then(() => {
+        expect(testContext.client.request).toHaveBeenCalledTimes(1);
+        expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+          data: {
+            paypalAccount: {
+              options: {
+                validate: false
+              }
+            }
+          }
+        });
+      });
+    });
+
     it('does not validate if flow is vault and auth is tokenization key', () => {
       testContext.configuration.authorizationType = 'TOKENIZATION_KEY';
 
@@ -1429,6 +1511,16 @@ describe('PayPalCheckout', () => {
         expect(arg.data.paypalAccount).not.toHaveProperty('billingAgreementToken');
       }));
 
+    it('does not send along billing token if both a token and a payment ID are provided', () =>
+      testContext.paypalCheckout.tokenizePayment({
+        billingToken: 'billing token',
+        paymentID: 'payment id'
+      }).then(() => {
+        const arg = testContext.client.request.mock.calls[0][0];
+
+        expect(arg.data.paypalAccount).not.toHaveProperty('billingAgreementToken');
+      }));
+
     it('sends a tokenization failure event when request fails', () => {
       const client = testContext.client;
 
@@ -1449,12 +1541,16 @@ describe('PayPalCheckout', () => {
   });
 
   describe('loadPayPalSDK', () => {
-    let fakeScript;
+    let fakeScript, firstHeadElement;
 
     beforeEach(() => {
       fakeScript = document.createElement('script');
-      jest.spyOn(document.body, 'appendChild').mockImplementation();
-      jest.spyOn(document, 'createElement').mockReturnValue(fakeScript);
+      firstHeadElement = document.createElement('meta');
+      document.head.appendChild(firstHeadElement);
+      jest.spyOn(document.head, 'insertBefore').mockImplementation();
+      jest.spyOn(document, 'createElement').mockReturnValueOnce(fakeScript);
+      jest.spyOn(XMLHttpRequest.prototype, 'open').mockImplementation();
+      jest.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation();
     });
 
     afterEach(() => {
@@ -1463,7 +1559,7 @@ describe('PayPalCheckout', () => {
       }
     });
 
-    it('loads the PayPal script onto the page', () => {
+    it('loads the PayPal script onto the top of the head', () => {
       const instance = testContext.paypalCheckout;
 
       const promise = instance.loadPayPalSDK();
@@ -1471,8 +1567,8 @@ describe('PayPalCheckout', () => {
       fakeScript.onload();
 
       return promise.then(() => {
-        expect(document.body.appendChild).toBeCalledTimes(1);
-        expect(document.body.appendChild).toBeCalledWith(fakeScript);
+        expect(document.head.insertBefore).toBeCalledTimes(1);
+        expect(document.head.insertBefore).toBeCalledWith(fakeScript, firstHeadElement);
         expect(fakeScript.src).toMatch('https://www.paypal.com/sdk/js?');
       });
     });
@@ -1489,10 +1585,9 @@ describe('PayPalCheckout', () => {
       });
     });
 
-    it('uses the client id from getClientId by default when in production', () => {
+    it('uses the client id from getClientId by default', () => {
       const instance = testContext.paypalCheckout;
 
-      instance._configuration.gatewayConfiguration.environment = 'production';
       jest.spyOn(instance, 'getClientId').mockResolvedValue('fake-id');
 
       const promise = instance.loadPayPalSDK();
@@ -1502,22 +1597,6 @@ describe('PayPalCheckout', () => {
       return promise.then(() => {
         expect(instance.getClientId).toBeCalledTimes(1);
         expect(fakeScript.src).toMatch('client-id=fake-id');
-      });
-    });
-
-    it('uses sb for client id when not in production', () => {
-      const instance = testContext.paypalCheckout;
-
-      instance._configuration.gatewayConfiguration.environment = 'sandbox';
-      jest.spyOn(instance, 'getClientId').mockResolvedValue('fake-id');
-
-      const promise = instance.loadPayPalSDK();
-
-      fakeScript.onload();
-
-      return promise.then(() => {
-        expect(instance.getClientId).toBeCalledTimes(1);
-        expect(fakeScript.src).toMatch('client-id=sb');
       });
     });
 
@@ -1564,7 +1643,7 @@ describe('PayPalCheckout', () => {
       });
     });
 
-    it('uses intent=authorize by default', () => {
+    it('uses intent=authorize by default for checkout flow', () => {
       const instance = testContext.paypalCheckout;
 
       const promise = instance.loadPayPalSDK();
@@ -1576,7 +1655,7 @@ describe('PayPalCheckout', () => {
       });
     });
 
-    it('does not pass a default intent when using the vault flow', () => {
+    it('passes a default intent when using the vault flow', () => {
       const instance = testContext.paypalCheckout;
 
       const promise = instance.loadPayPalSDK({
@@ -1586,7 +1665,7 @@ describe('PayPalCheckout', () => {
       fakeScript.onload();
 
       return promise.then(() => {
-        expect(fakeScript.src).not.toMatch('intent=');
+        expect(fakeScript.src).toMatch('intent=tokenize');
       });
     });
 
@@ -1661,6 +1740,154 @@ describe('PayPalCheckout', () => {
         expect(fakeScript.src).toMatch('baz=baz');
       });
     });
+
+    it('can pass data attributes', () => {
+      const instance = testContext.paypalCheckout;
+
+      const promise = instance.loadPayPalSDK({
+        dataAttributes: {
+          foo: 'bar',
+          'client-token': 'value',
+          amount: '100.00'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-foo')).toBe('bar');
+        expect(fakeScript.getAttribute('data-client-token')).toBe('value');
+        expect(fakeScript.getAttribute('data-amount')).toBe('100.00');
+        expect(fakeScript.src).not.toMatch('dataAttributes');
+        expect(fakeScript.src).not.toMatch('foo');
+        expect(fakeScript.src).not.toMatch('client-token');
+        expect(fakeScript.src).not.toMatch('foo');
+      });
+    });
+
+    it('passes authorization fingerprint as data-user-id-token when a client token is used and is enabled for setting it', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+
+      const promise = instance.loadPayPalSDK();
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBe('auth-fingerprint');
+
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('https://www.sandbox.paypal.com/smart/buttons/preload?'));
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('user-id-token=auth-fingerprint'));
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('client-id=client-id'));
+      });
+    });
+
+    it('uses production domain for preload pixel when environemnt is production', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+      instance._authorizationInformation.environment = 'production';
+
+      const promise = instance.loadPayPalSDK();
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('https://www.paypal.com/smart/buttons/preload?'));
+      });
+    });
+
+    it('can pass amount, currency and merchant id along to preload pixel', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+
+      const promise = instance.loadPayPalSDK({
+        currency: 'USD',
+        'merchant-id': 'merchantid',
+        dataAttributes: {
+          amount: '123.45'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('currency=USD'));
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('merchant-id=merchantid'));
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('amount=123.45'));
+      });
+    });
+
+    it('passes authorization fingerprint as data-user-id-token without the customer query param', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+      instance._authorizationInformation.fingerprint = 'auth-fingerprint?customer=';
+
+      const promise = instance.loadPayPalSDK();
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBe('auth-fingerprint');
+
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('user-id-token=auth-fingerprint'));
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('client-id=client-id'));
+      });
+    });
+
+    it('does not create data-user-id-token attribute for tokenization keys', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+      delete instance._authorizationInformation.fingerprint;
+
+      const promise = instance.loadPayPalSDK();
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBeFalsy();
+        expect(document.querySelector('[data-preload-id="paypal-preload-pixel-img"]')).toBeFalsy();
+      });
+    });
+
+    it('does not pass authorization fingerprint as data-user-id-token when not enabled for it', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = false;
+
+      const promise = instance.loadPayPalSDK();
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBeFalsy();
+        expect(document.querySelector('[data-preload-id="paypal-preload-pixel-img"]')).toBeFalsy();
+      });
+    });
+
+    it('uses passed in user-id-token when both exist', () => {
+      const instance = testContext.paypalCheckout;
+
+      instance._autoSetDataUserIdToken = true;
+      instance._authorizationInformation.fingerprint = 'unused-auth-fingerprint';
+
+      const promise = instance.loadPayPalSDK({
+        dataAttributes: {
+          'user-id-token': 'custom-auth-fingerprint'
+        }
+      });
+
+      fakeScript.onload();
+
+      return promise.then(() => {
+        expect(fakeScript.getAttribute('data-user-id-token')).toBe('custom-auth-fingerprint');
+        expect(XMLHttpRequest.prototype.open).toBeCalledWith('GET', expect.stringContaining('user-id-token=custom-auth-fingerprint'));
+      });
+    });
   });
 
   describe('teardown', () => {
@@ -1707,6 +1934,32 @@ describe('PayPalCheckout', () => {
       return instance.teardown().then(() => {
         expect(document.body.removeChild).toBeCalledTimes(0);
       });
+    });
+
+    it('tears down frameservice', () => {
+      const instance = testContext.paypalCheckout;
+
+      return instance.teardown().then(() => {
+        expect(testContext.fakeFrameService.teardown).toBeCalledTimes(1);
+      });
+    });
+
+    it('ignores frame service if frame service errored in creation', async () => {
+      // fake having the frame service time out during set up
+      frameService.create.mockImplementation();
+      jest.useFakeTimers();
+
+      const ppInstanceWithoutFrameservice = new PayPalCheckout({});
+
+      await ppInstanceWithoutFrameservice._initialize({
+        client: testContext.client
+      });
+
+      jest.runOnlyPendingTimers();
+
+      await ppInstanceWithoutFrameservice.teardown();
+
+      expect(testContext.fakeFrameService.teardown).toBeCalledTimes(0);
     });
   });
 });

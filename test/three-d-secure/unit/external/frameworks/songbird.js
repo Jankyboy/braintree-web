@@ -3,7 +3,7 @@
 jest.mock('../../../../../src/lib/assets');
 jest.mock('@braintree/asset-loader/load-script');
 
-const Bus = require('../../../../../src/lib/bus');
+const Bus = require('framebus');
 const BaseFramework = require('../../../../../src/three-d-secure/external/frameworks/base');
 const SongbirdFramework = require('../../../../../src/three-d-secure/external/frameworks/songbird');
 const { wait, fake: { clientToken }, yieldsAsync, yieldsByEventAsync, yieldsByEvents, findFirstEventCallback } = require('../../../../helpers');
@@ -113,6 +113,32 @@ describe('SongbirdFramework', () => {
         done();
       });
     });
+
+    it.each([
+      ['CUSTOMER_CANCELED', 'customer-canceled'],
+      ['UI.CLOSE', 'authentication-modal-close'],
+      ['UI.RENDER', 'authentication-modal-render'],
+      ['UI.RENDERHIDDEN', 'authentication-modal-render-hidden'],
+      ['UI.LOADING.CLOSE', 'authentication-modal-loader-close'],
+      ['UI.LOADING.RENDER', 'authentication-modal-loader-render']
+    ])('sets up %s event without payload', (eventName, publicEventName, done) => {
+      const framework = new SongbirdFramework({
+        createPromise: Promise.resolve(testContext.client),
+        client: testContext.client
+      });
+
+      jest.spyOn(framework, 'on').mockImplementation((event, cb) => {
+        if (event === `songbird-framework:${eventName}`) {
+          cb();
+        }
+      });
+
+      framework.setUpEventListeners((event) => {
+        expect(event).toBe(publicEventName);
+
+        done();
+      });
+    });
   });
 
   describe('verifyCard', () => {
@@ -131,7 +157,8 @@ describe('SongbirdFramework', () => {
           }
         },
         lookup: {
-          threeDSecureVersion: '2.1.0'
+          threeDSecureVersion: '2.1.0',
+          transactionId: 'txn-id'
         },
         threeDSecureInfo: {
           liabilityShiftPossible: true,
@@ -197,7 +224,8 @@ describe('SongbirdFramework', () => {
           paymentMethod: {},
           threeDSecureInfo: {},
           lookup: {
-            threeDSecureVersion: '2.1.0'
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
           }
         });
 
@@ -249,7 +277,8 @@ describe('SongbirdFramework', () => {
           paymentMethod: {},
           threeDSecureInfo: {},
           lookup: {
-            threeDSecureVersion: '2.1.0'
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
           }
         });
 
@@ -345,7 +374,8 @@ describe('SongbirdFramework', () => {
           paymentMethod: {},
           threeDSecureInfo: {},
           lookup: {
-            threeDSecureVersion: '2.1.0'
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
           }
         });
 
@@ -367,13 +397,45 @@ describe('SongbirdFramework', () => {
         });
       });
 
+      it('makes a request to the 3DS lookup endpoint with accountType', () => {
+        jest.spyOn(testContext.instance, 'getDfReferenceId').mockResolvedValue('df-id');
+        testContext.client.request.mockResolvedValue({
+          paymentMethod: {},
+          threeDSecureInfo: {},
+          lookup: {
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
+          }
+        });
+
+        return testContext.instance.verifyCard({
+          nonce: testContext.tokenizedCard.nonce,
+          bin: testContext.tokenizedCard.details.bin,
+          accountType: 'credit',
+          amount: 100,
+          onLookupComplete: yieldsAsync()
+        }).then(() => {
+          expect(testContext.client.request).toHaveBeenCalledTimes(1);
+          expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+            endpoint: 'payment_methods/abcdef/three_d_secure/lookup',
+            method: 'post',
+            data: {
+              accountType: 'credit',
+              dfReferenceId: 'df-id', // eslint-disable-line camelcase
+              amount: 100
+            }
+          });
+        });
+      });
+
       it('makes a request to the 3DS lookup endpoint with challengeRequested', () => {
         jest.spyOn(testContext.instance, 'getDfReferenceId').mockResolvedValue('df-id');
         testContext.client.request.mockResolvedValue({
           paymentMethod: {},
           threeDSecureInfo: {},
           lookup: {
-            threeDSecureVersion: '2.1.0'
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
           }
         });
 
@@ -397,13 +459,45 @@ describe('SongbirdFramework', () => {
         });
       });
 
+      it('makes a request to the 3DS lookup endpoint with dataOnlyRequested', () => {
+        jest.spyOn(testContext.instance, 'getDfReferenceId').mockResolvedValue('df-id');
+        testContext.client.request.mockResolvedValue({
+          paymentMethod: {},
+          threeDSecureInfo: {},
+          lookup: {
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
+          }
+        });
+
+        return testContext.instance.verifyCard({
+          nonce: testContext.tokenizedCard.nonce,
+          bin: testContext.tokenizedCard.details.bin,
+          dataOnlyRequested: true,
+          amount: 100,
+          onLookupComplete: yieldsAsync()
+        }).then(() => {
+          expect(testContext.client.request).toHaveBeenCalledTimes(1);
+          expect(testContext.client.request.mock.calls[0][0]).toMatchObject({
+            endpoint: 'payment_methods/abcdef/three_d_secure/lookup',
+            method: 'post',
+            data: {
+              dataOnlyRequested: true,
+              dfReferenceId: 'df-id', // eslint-disable-line camelcase
+              amount: 100
+            }
+          });
+        });
+      });
+
       it('makes a request to the 3DS lookup endpoint with exemptionRequested', () => {
         jest.spyOn(testContext.instance, 'getDfReferenceId').mockResolvedValue('df-id');
         testContext.client.request.mockResolvedValue({
           paymentMethod: {},
           threeDSecureInfo: {},
           lookup: {
-            threeDSecureVersion: '2.1.0'
+            threeDSecureVersion: '2.1.0',
+            transactionId: 'txn-id'
           }
         });
 
@@ -456,6 +550,7 @@ describe('SongbirdFramework', () => {
 
         testContext.lookupResponse.lookup = {
           acsUrl: 'http://example.com/acs',
+          transactionId: 'txn-id',
           pareq: 'pareq',
           termUrl: 'http://example.com/term',
           md: 'md',
@@ -629,7 +724,7 @@ describe('SongbirdFramework', () => {
         });
       });
 
-      it('passes back a `requiresUserAuthentication=false` when an acs url is nots present', () => {
+      it('passes back a `requiresUserAuthentication=false` when an acs url is not present', () => {
         delete testContext.lookupResponse.lookup.acsUrl;
 
         return testContext.instance.verifyCard({
@@ -975,6 +1070,39 @@ describe('SongbirdFramework', () => {
       });
     });
 
+    it.each([
+      'ui.close',
+      'ui.render',
+      'ui.renderHidden',
+      'ui.loading.close',
+      'ui.loading.render'
+    ])('sets up %s listener', (eventName) => {
+      expect.assertions(4);
+
+      jest.spyOn(SongbirdFramework.prototype, 'setCardinalListener').mockImplementation((name, cb) => {
+        if (name === eventName) {
+          // ensure that this specific event was listened for
+          expect(name).toBe(eventName);
+          cb();
+        }
+
+        // ensure that the framework finishes setting up
+        if (name === 'payments.setupComplete') {
+          cb();
+        }
+      });
+
+      jest.spyOn(SongbirdFramework.prototype, '_emit');
+
+      return new SongbirdFramework({
+        createPromise: Promise.resolve(testContext.client),
+        client: testContext.client
+      }).setupSongbird().then(() => {
+        expect(SongbirdFramework.prototype.setCardinalListener).toHaveBeenCalledWith(eventName, expect.any(Function));
+        expect(SongbirdFramework.prototype._emit).toBeCalledWith(`songbird-framework:${eventName.toUpperCase()}`);
+      });
+    });
+
     it('sets up payments.setupComplete listener', () => {
       return new SongbirdFramework({
         createPromise: Promise.resolve(testContext.client),
@@ -1116,6 +1244,31 @@ describe('SongbirdFramework', () => {
       }).then(() => {
         expect(analytics.sendEvent).toHaveBeenCalledWith(expect.anything(), 'three-d-secure.v1-fallback.cardinal-sdk-setup-failed.cardinal-configuration-threw-error');
         expect(testContext.tds._useV1Fallback).toBe(true);
+      });
+    });
+
+    it('uses v1 fallback if configuration includes mpiProvider information and it is not cardinal', () => {
+      testContext.configuration.gatewayConfiguration.threeDSecure.versionTwo = null;
+
+      return new SongbirdFramework({
+        createPromise: Promise.resolve(testContext.client),
+        client: testContext.client
+      }).setupSongbird().then(() => {
+        return wait();
+      }).then(() => {
+        expect(analytics.sendEvent).toHaveBeenCalledWith(expect.anything(), 'three-d-secure.v1-fallback.cardinal-sdk-setup-failed.cardinal-api-not-available-or-configured');
+        expect(testContext.tds._useV1Fallback).toBe(true);
+      });
+    });
+
+    it('sets up Cardinal if mpiProvider information is available and it is cardinal', () => {
+      testContext.configuration.gatewayConfiguration.threeDSecure.versionTwo = 'cardinal';
+
+      return testContext.tds.setupSongbird().then(() => {
+        expect(window.Cardinal.setup).toHaveBeenCalledTimes(1);
+        expect(window.Cardinal.setup).toHaveBeenCalledWith('init', {
+          jwt: 'jwt'
+        });
       });
     });
 
@@ -1322,6 +1475,24 @@ describe('SongbirdFramework', () => {
           expect(analytics.sendEvent).toHaveBeenCalledWith(expect.anything(), 'three-d-secure.v1-fallback.cardinal-sdk-setup-error.number-1010');
         });
       });
+
+      it('uses v1 fallback flow when lookup response does not have a transaction id', () => {
+        let instance;
+
+        instance = new SongbirdFramework({
+          createPromise: Promise.resolve(testContext.client),
+          client: testContext.client
+        });
+        Bus.prototype.on.mockImplementation(yieldsByEventAsync('threedsecure:AUTHENTICATION_COMPLETE', {
+          auth_response: '{"paymentMethod":{"type":"CreditCard","nonce":"nonce-from-v1-fallback-flow","description":"ending+in+00","consumed":false,"threeDSecureInfo":{"liabilityShifted":true,"liabilityShiftPossible":true,"status":"authenticate_successful","enrolled":"Y"},"details":{"lastTwo":"00","cardType":"Visa"}},"threeDSecureInfo":{"liabilityShifted":true,"liabilityShiftPossible":true},"success":true}' // eslint-disable-line camelcase
+        }));
+
+        delete testContext.lookupResponse.lookup.transactionId;
+
+        return instance.initializeChallengeWithLookupResponse(testContext.lookupResponse).then(result => {
+          expect(result.nonce).toBe('nonce-from-v1-fallback-flow');
+        });
+      });
     });
   });
 
@@ -1526,7 +1697,8 @@ describe('SongbirdFramework', () => {
           }
         },
         lookup: {
-          threeDSecureVersion: '2.1.0'
+          threeDSecureVersion: '2.1.0',
+          transactionId: 'txn-id'
         },
         threeDSecureInfo: {
           liabilityShiftPossible: true,
@@ -1617,9 +1789,8 @@ describe('SongbirdFramework', () => {
       testContext.framework.setCardinalListener('bar', jest.fn());
 
       return testContext.framework.teardown().then(() => {
-        expect(window.Cardinal.off).toHaveBeenCalledTimes(4);
-        expect(window.Cardinal.off).toHaveBeenNthCalledWith(3, 'foo');
-        expect(window.Cardinal.off).toHaveBeenNthCalledWith(4, 'bar');
+        expect(window.Cardinal.off).toHaveBeenCalledWith('foo');
+        expect(window.Cardinal.off).toHaveBeenCalledWith('bar');
       });
     });
   });

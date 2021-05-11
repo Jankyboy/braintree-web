@@ -1,6 +1,125 @@
 CHANGELOG
 =========
 
+## 3.76.4
+* Update card-validator to v8.1.1
+* Local Payments
+  * Fix issue where local payment window may not open
+  * Fix issue where customer could get stranded when cancelling from a mobile banking app
+
+## 3.76.3
+* Update @braintree/sanitize-url to v5.0.1
+* Venmo
+  * Fix issue where profile id was not being passed to Venmo Desktop flow
+
+## 3.76.2
+* Update browser-detection to v1.11.1
+* Hosted Fields
+  * Fix issue where nested Shadow DOM elements would not allow the iframes to initialize
+* Venmo
+  * Fix issue where `venmo.isSupported({ allowNewBrowserTab: false })` was returning `true` for Firefox on iOS
+
+## 3.76.1
+
+* Local Payments
+  * Correct error code for a payment that fails on the bank side of the payment (was previously reported as the customer canceling the process)
+
+## 3.76.0
+
+* Venmo
+  * Add `useRedirectForIOS` flag as an alternate way to open Venmo flow in iOS environments
+
+## 3.75.0
+* Hosted Fields
+  * Add support for `box-shadow` style (#559)
+* PayPal
+  * Add `offerPayLater` to PayPal `tokenize`
+* PayPal Checkout
+  * Correct default `intent` parameter to `tokenize` in `loadPayPalSDK` when using `vault: true`
+* Venmo
+  * Correct issue where incorrect return url could be constructed when merchant page url included an empty `#`
+  * Fix issue with `requireManualReturn` flow in iOS webviews
+
+## 3.74.0
+* PayPal Checkout
+  * Default `intent` parameter to `authorize` in `loadPayPalSDK` when using `vault: true` to eliminate console error about using `tokenize` for intent (#544)
+  * Fix issue where dispatch frame would not get cleaned up when calling `teardown` (#555)
+* Local Payments
+  * Add `bic` property to `options` parameter for iDEAL transactions
+  * Update default size of window to 1282 X 720
+  * Allow height and width of the window to be specified with `windowOptions.height` and `windowOptions.width` when calling `startPayment`
+
+## 3.73.1
+* Update framebus to v5.1.2
+  * Fix issue where components dependent on framebus (Hosted Fields, PayPal, etc) would not load in IE11 (#554)
+
+## 3.73.0
+* Venmo
+  * Add `cancelTokenization` for programatic cancelation of the `tokenize` flow
+  * Fix issue where venmo component may not yet be ready when beginning tokenization
+  * Fix issue where Venmo would fail when embedded in an iframe
+
+## 3.72.0
+* 3D Secure
+  * Add `accountType` param to `verifyCard`
+
+## 3.71.1
+* Update framebus to v5.1.0
+* Data Collector
+  * Fix issue where sandbox environment was not set for Advanced Fraud Protection
+
+## 3.71.0
+* Update promise-polyfill to v8.2.0
+* Update credit-card-type to v9.1.0
+* Hosted Fields
+  * Fix issue where card number would present as invalid when autofilled from cardholder name field (#547)
+  * Allow maxlength field to be greater than 10 for postal code inputs (#551)
+
+## 3.70.0
+* Local Payments
+  * Add `paymentTypeCountryCode` as supported field when starting a local payment
+
+## 3.69.0
+* Update @braintree/browser-detection to v1.11.0
+* Update @braintree/extended-promise to v0.4.1
+* Update framebus to v5.0.0
+* Hosted Fields
+  * Fix issue where multiple Hosted Fields instances would issue warnings in the console about duplicate ids (closes #533)
+* PayPal Checkout
+  * Support displaying a customer's vaulted PayPal account when rendering the PayPal SDK using `options.autoSetDataUserIdToken` in the create call
+
+## 3.68.0
+* Update framebus to v4.0.4
+* Apple Pay
+  * Support Maestro cards
+* Hosted Fields
+  * Support `text-align` style
+* PayPal Checkout
+  * Fix issue in `loadPayPalSDK` where PayPal SDK should have been loaded in the head of the document instead of the body to allow re-loading the SDK dynamically
+
+## 3.67.0
+* Update @braintree/sanitize-url to v5.0.0
+* Client
+  * Provide `CLIENT_AUTHORIZATION_INVALID` error when client token has expired or a tokenization key has been deactivated or deleted
+* Venmo
+  * Add `allowWebviews` configuration to `isBrowserSupported`
+
+## 3.66.0
+* Hosted Fields
+  * Fix issue where cardholder name field would present a number keyboard on iOS devices (closes #523)
+  * Fix issue where incorrect keyboard would be used for mobile devices that do not support input formatting
+  * Fix issue where autocomplete cannot run multiple times (closes #479)
+  * Add autofill handling for every hosted field (closes #480)
+* PayPal Checkout
+  * In sandbox, use client id found in merchant configuration for `loadPayPalSDK` instead of always using `sb`
+  * Allow data attributes to be passed to `loadPayPalSDK`
+  * Fix issue when tokenizing during `requestBillingAgreement: true` flows
+  * Fix issue where `intent` used in `createPayment` was not passed to `tokenizePayment` in PayPal JS SDK
+* Venmo
+  * Remove use of `global` (use `window` instead for better compatibility)
+* 3D Secure
+  * Add `authentication-modal-render` and `authentication-modal-close` events
+
 ## 3.65.0
 * Update @braintree/event-emitter to v0.4.1
 * Update card-validator to v8.1.0

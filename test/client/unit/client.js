@@ -437,9 +437,11 @@ describe('Client', () => {
       expect(client._request.mock.calls[0][0]).toMatchObject({
         data: {
           clientSdkMetadata: {
+            platform: 'web',
             source: 'client',
             integration: 'custom',
-            sessionId: 'fakeSessionId'
+            sessionId: 'fakeSessionId',
+            version: expect.stringMatching(/^3\./)
           },
           foo: 'bar'
         },
@@ -699,6 +701,25 @@ describe('Client', () => {
 
       expect(client._request.mock.calls[0][0]).toMatchObject({
         data: { some: 'stuffs' }
+      });
+    });
+
+    it('returns BraintreeError for expired authorization if driver has a 401', done => {
+      const client = new Client(fakeConfiguration());
+
+      jest.spyOn(client, '_request').mockImplementation(yieldsAsync('error', null, 401));
+
+      client.request({
+        endpoint: 'payment_methods',
+        method: 'get'
+      }, (err, data, status) => {
+        expect(err).toBeInstanceOf(BraintreeError);
+        expect(err.type).toBe('MERCHANT');
+        expect(err.code).toBe('CLIENT_AUTHORIZATION_INVALID');
+        expect(err.message).toBe('Either the client token has expired and a new one should be generated or the tokenization key has been deactivated or deleted.');
+        expect(data).toBeNull();
+        expect(status).toBe(401);
+        done();
       });
     });
 

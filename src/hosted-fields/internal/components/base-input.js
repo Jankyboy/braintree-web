@@ -11,6 +11,13 @@ var allowedFields = constants.allowedFields;
 var ENTER_KEY_CODE = 13;
 var DEFAULT_MASK_CHARACTER = '•';
 
+// NEXT_MAJOR_VERSION Use inputMode="numeric" with type="text" instead of type="tel"
+// for inputs that require the 0-9 Keyboard.
+// https://github.com/braintree/braintree-web/pull/542
+// iOS ^v12.2 technically supports inputMode, but it uses the alphanumeric
+// keyboard instead of the numeric keyboard. Because of this (and difficulty
+// testing on old Android Chrome versions) we'll put this off until the
+// next major version.
 function constructAttributes(options) {
   var field = options.field;
   var name = options.name;
@@ -242,6 +249,20 @@ BaseInput.prototype.focus = function () {
 BaseInput.prototype.addModelEventListeners = function () {
   this.modelOnChange('isValid', this.render);
   this.modelOnChange('isPotentiallyValid', this.render);
+
+  this.model.on('autofill:' + this.type, function (value) {
+    this.element.value = '';
+    this.updateModel('value', '');
+    this.element.value = value;
+    this.updateModel('value', value);
+
+    if (this.shouldMask) {
+      this.maskValue(value);
+    }
+    this._resetPlaceholder();
+
+    this.render();
+  }.bind(this));
 };
 
 BaseInput.prototype.setPlaceholder = function (type, placeholder) {
@@ -308,6 +329,17 @@ BaseInput.prototype._createRestrictedInputOptions = function (options) {
     element: this.element,
     pattern: ' '
   };
+};
+
+BaseInput.prototype._resetPlaceholder = function () {
+  // After autofill, Safari leaves the placeholder visible in the iframe, we
+  // compensate for this by removing and re-setting the placeholder
+  var placeholder = this.element.getAttribute('placeholder');
+
+  if (placeholder) {
+    this.element.setAttribute('placeholder', '');
+    this.element.setAttribute('placeholder', placeholder);
+  }
 };
 
 module.exports = {

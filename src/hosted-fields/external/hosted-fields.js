@@ -2,10 +2,11 @@
 
 var assign = require('../../lib/assign').assign;
 var createAssetsUrl = require('../../lib/create-assets-url');
+var isVerifiedDomain = require('../../lib/is-verified-domain');
 var Destructor = require('../../lib/destructor');
 var classList = require('@braintree/class-list');
 var iFramer = require('@braintree/iframer');
-var Bus = require('../../lib/bus');
+var Bus = require('framebus');
 var createDeferredClient = require('../../lib/create-deferred-client');
 var BraintreeError = require('../../lib/braintree-error');
 var composeUrl = require('./compose-url');
@@ -440,7 +441,7 @@ function HostedFields(options) {
 
   this._bus = new Bus({
     channel: componentId,
-    merchantUrl: location.href
+    verifyDomain: isVerifiedDomain
   });
 
   this._destructor.registerFunctionForTeardown(function () {
@@ -533,7 +534,7 @@ function HostedFields(options) {
       title: 'Secure Credit Card Frame - ' + constants.allowedFields[key].label
     });
 
-    this._injectedNodes.push.apply(this._injectedNodes, injectFrame(frame, internalContainer, function () {
+    this._injectedNodes.push.apply(this._injectedNodes, injectFrame(componentId, frame, internalContainer, function () {
       self._bus.emit(events.TRIGGER_INPUT_FOCUS, {
         field: key
       });
@@ -591,7 +592,7 @@ function HostedFields(options) {
     destroyFocusIntercept(data && data.id);
   });
 
-  this._bus.on(events.TRIGGER_FOCUS_CHANGE, focusChange.createFocusChangeHandler({
+  this._bus.on(events.TRIGGER_FOCUS_CHANGE, focusChange.createFocusChangeHandler(componentId, {
     onRemoveFocusIntercepts: function (element) {
       self._bus.emit(events.REMOVE_FOCUS_INTERCEPTS, {
         id: element
@@ -877,7 +878,7 @@ HostedFields.prototype.teardown = function () {
  *         // occurs when certain fields do not pass client side validation
  *         console.error('Some fields are invalid:', tokenizeErr.details.invalidFieldKeys);
  *
- *         // you can also programtically access the field containers for the invalid fields
+ *         // you can also programmatically access the field containers for the invalid fields
  *         tokenizeErr.details.invalidFields.forEach(function (fieldContainer) {
  *           fieldContainer.className = 'invalid';
  *         });
@@ -897,7 +898,7 @@ HostedFields.prototype.teardown = function () {
  *         //     with a customer ID and the verify card option is set to true
  *         //     and you have credit card verification turned on in the Braintree
  *         //     control panel
- *         //   * the cvv does not pass verfication (https://developers.braintreepayments.com/reference/general/testing/#avs-and-cvv/cid-responses)
+ *         //   * the cvv does not pass verification (https://developers.braintreepayments.com/reference/general/testing/#avs-and-cvv/cid-responses)
  *         // See: https://developers.braintreepayments.com/reference/request/client-token/generate/#options.verify_card
  *         console.error('CVV did not pass verification');
  *         break;
@@ -1188,7 +1189,7 @@ HostedFields.prototype.setAttribute = function (options) {
  *
  * @public
  * @param {array} options An array of 12 entries corresponding to the 12 months.
- * @param {callback} [callback] Callback executed on completion, containing an error if one occurred. No data is returned if the options are updated succesfully. Errors if expirationMonth is not configured on the Hosted Fields instance or if the expirationMonth field is not configured to be a select input.
+ * @param {callback} [callback] Callback executed on completion, containing an error if one occurred. No data is returned if the options are updated successfully. Errors if expirationMonth is not configured on the Hosted Fields instance or if the expirationMonth field is not configured to be a select input.
  *
  * @example <caption>Update the month options to spanish</caption>
  * hostedFieldsInstance.setMonthOptions([
@@ -1233,7 +1234,7 @@ HostedFields.prototype.setMonthOptions = function (options) {
 };
 
 /**
- * Sets a visually hidden message (for screenreaders) on a {@link module:braintree-web/hosted-fields~field field}.
+ * Sets a visually hidden message (for screen readers) on a {@link module:braintree-web/hosted-fields~field field}.
  *
  * @public
  * @param {object} options The options for the attribute you wish to set.
@@ -1399,7 +1400,7 @@ HostedFields.prototype.clear = function (field) {
  *   //   if the element has a tabindex property or the element
  *   //   is an anchor link with an href property.
  *   // In Mobile Safari, the focus method is unable to
- *   //   programatically open the keyboard, as only
+ *   //   programmatically open the keyboard, as only
  *   //   touch events are allowed to do so.
  *   e.preventDefault();
  *   hostedFieldsInstance.focus('number');

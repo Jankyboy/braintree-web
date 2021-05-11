@@ -90,15 +90,8 @@ describe('venmo static methods', () => {
 
     it('sends an analytics event when successful', () => create({ client: testContext.client })
       .then(() => {
-        expect(analytics.sendEvent).toBeCalledTimes(1);
         expect(analytics.sendEvent).toBeCalledWith(expect.anything(), 'venmo.initialized');
       }));
-
-    it('does not error out if Venmo is not enabled for the merchant when using deferred client', () => {
-      delete testContext.configuration.gatewayConfiguration.payWithVenmo;
-
-      return create({ authorization: 'fake-auth' });
-    });
   });
 
   describe('venmo.isBrowserSupported', () => {
@@ -117,6 +110,14 @@ describe('venmo static methods', () => {
 
       expect(supportsVenmo.isBrowserSupported).toBeCalledWith({
         allowNewBrowserTab: true
+      });
+    });
+
+    it('can call isBrowserSupported with allowWebviews', () => {
+      isBrowserSupported({ allowWebviews: true });
+
+      expect(supportsVenmo.isBrowserSupported).toBeCalledWith({
+        allowWebviews: true
       });
     });
   });

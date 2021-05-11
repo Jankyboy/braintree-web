@@ -33,7 +33,7 @@ var FRAMEWORKS = require('./frameworks');
  * @property {string} [customer.billingAddress.streetAddress] Line 1 of the Address (eg. number, street, etc).
  * @property {string} [customer.billingAddress.extendedAddress] Line 2 of the Address (eg. suite, apt #, etc.).
  * @property {string} [customer.billingAddress.locality] The locality (city) name associated with the address.
- * @property {string} [customer.billingAddress.region] The 2 letter code for US states, and the equivalent for other countries.
+ * @property {string} [customer.billingAddress.region] The 2 letter code for US states or an ISO-3166-2 country subdivision code of up to three letters.
  * @property {string} [customer.billingAddress.postalCode] The zip code or equivalent for countries that have them.
  * @property {string} [customer.billingAddress.countryCodeAlpha2] The 2 character country code.
  * @property {string} [customer.billingAddress.phoneNumber] The phone number associated with the address. Only numbers; remove dashes, parenthesis and other characters.
@@ -89,33 +89,33 @@ var FRAMEWORKS = require('./frameworks');
 
 /**
  * @typedef {object} ThreeDSecure~billingAddress
- * @property {string} [givenName] The first name associated with the billing address.
- * @property {string} [surname] The last name associated with the billing address.
+ * @property {string} [givenName] The first name associated with the billing address. (maximum length 50)
+ * @property {string} [surname] The last name associated with the billing address. (maximum length 50)
  * @property {string} [phoneNumber] The phone number associated with the billing address. Only numbers; remove dashes, parenthesis and other characters.
- * @property {string} [streetAddress] Line 1 of the billing address (eg. number, street, etc).
- * @property {string} [extendedAddress] Line 2 of the billing address (eg. suite, apt #, etc.).
- * @property {string} [line3] Line 3 of the billing address if needed (eg. suite, apt #, etc).
+ * @property {string} [streetAddress] Line 1 of the billing address (eg. number, street, etc). (maximum length 50)
+ * @property {string} [extendedAddress] Line 2 of the billing address (eg. suite, apt #, etc.). (maximum length 50)
+ * @property {string} [line3] Line 3 of the billing address if needed (eg. suite, apt #, etc). (maximum length 50)
  * @property {string} [locality] The locality (city) name associated with the billing address.
- * @property {string} [region] The 2 letter code for US states, and the equivalent for other countries.
+ * @property {string} [region] The 2 letter code for US states or an ISO-3166-2 country subdivision code of up to three letters.
  * @property {string} [postalCode] The zip code or equivalent for countries that have them.
  * @property {string} [countryCodeAlpha2] The 2 character country code.
 */
 
 /**
  * @typedef {object} ThreeDSecure~additionalInformation
- * @property {string} [workPhoneNumber] The work phone number used for verification. Only numbers; remove dashes, parenthesis and other characters.
- * @property {string} [shippingGivenName] The first name associated with the shipping address.
- * @property {string} [shippingSurname] The last name associated with the shipping address.
+ * @property {string} [workPhoneNumber] The work phone number used for verification. Only numbers; remove dashes, parenthesis and other characters. (maximum length 25)
+ * @property {string} [shippingGivenName] The first name associated with the shipping address. (maximum length 50)
+ * @property {string} [shippingSurname] The last name associated with the shipping address. (maximum length 50)
  * @property {object} [shippingAddress]
- * @property {string} [shippingAddress.streetAddress] The first name associated with the shipping address.
- * @property {string} [shippingAddress.extendedAddress] The last name associated with the shipping address.
- * @property {string} [shippingAddress.line3] Line 3 of the shipping address if needed (eg. suite, apt #, etc).
- * @property {string} [shippingAddress.locality] The locality (city) name associated with the shipping address.
- * @property {string} [shippingAddress.region] The 2 letter code for US states, and the equivalent for other countries.
- * @property {string} [shippingAddress.postalCode] The zip code or equivalent for countries that have them.
- * @property {string} [shippingAddress.countryCodeAlpha2] The 2 character country code.
- * @property {string} [shippingPhone] The phone number associated with the shipping address. Only numbers; remove dashes, parenthesis and other characters.
- * @property {string} [shippingMethod] The 2-digit string indicating the name of the shipping method chosen for the transaction. Possible values:
+ * @property {string} [shippingAddress.streetAddress] Line 1 of the shipping address (eg. number, street, etc). (maximum length 50)
+ * @property {string} [shippingAddress.extendedAddress] Line 2 of the shipping address (eg. suite, apt #, etc.). (maximum length 50)
+ * @property {string} [shippingAddress.line3] Line 3 of the shipping address if needed (eg. suite, apt #, etc). (maximum length 50)
+ * @property {string} [shippingAddress.locality] The locality (city) name associated with the shipping address. (maximum length 50)
+ * @property {string} [shippingAddress.region] The 2 letter code for US states or an ISO-3166-2 country subdivision code of up to three letters. (maximum length 50)
+ * @property {string} [shippingAddress.postalCode] The zip code or equivalent for countries that have them. (maximum length 10)
+ * @property {string} [shippingAddress.countryCodeAlpha2] The 2 character country code. (maximum length 2)
+ * @property {string} [shippingPhone] The phone number associated with the shipping address. Only numbers; remove dashes, parenthesis and other characters. (maximum length 20)
+ * @property {string} [shippingMethod] The 2-digit string indicating the name of the shipping method chosen for the transaction. (maximum length 50) Possible values:
  * - `01` Same Day
  * - `02` Overnight / Expedited
  * - `03` Priority (2-3 Days)
@@ -148,7 +148,7 @@ var FRAMEWORKS = require('./frameworks');
  * - `02` Same day shipping
  * - `03` Overnight shipping
  * - `04` Two or more day shipping
- * @property {string} [deliveryEmail] For electronic delivery, email address to which the merchandise was delivered.
+ * @property {string} [deliveryEmail] For electronic delivery, email address to which the merchandise was delivered. (maximum length 254)
  * @property {string} [reorderindicator] The 2-digit number indicating whether the cardholder is reordering previously purchased merchandise. possible values:
  * - `01` First time ordered
  * - `02` Reordered
@@ -156,9 +156,9 @@ var FRAMEWORKS = require('./frameworks');
  * - `01` Merchandise available
  * - `02` Future availability
  * @property {string} [preorderDate] The 8-digit number (format: YYYYMMDD) indicating expected date that a pre-ordered purchase will be available.
- * @property {string} [giftCardAmount] The purchase amount total for prepaid gift cards in major units.
- * @property {string} [giftCardCurrencyCode] ISO 4217 currency code for the gift card purchased.
- * @property {string} [giftCardCount] Total count of individual prepaid gift cards purchased.
+ * @property {string} [giftCardAmount] The purchase amount total for prepaid gift cards in major units. (maximum length 15)
+ * @property {string} [giftCardCurrencyCode] ISO 4217 currency code for the gift card purchased. (maximum length 3)
+ * @property {string} [giftCardCount] Total count of individual prepaid gift cards purchased. (maximum length 2)
  * @property {string} [accountAgeIndicator] The 2-digit value representing the length of time cardholder has had account. Possible values:
  * - `01` No Account
  * - `02` Created during transaction
@@ -185,9 +185,9 @@ var FRAMEWORKS = require('./frameworks');
  * - `03` 30-60 days
  * - `04` More than 60 days
  * @property {string} [shippingAddressUsageDate] The 8-digit number (format: YYYYMMDD) indicating the date when the shipping address used for this transaction was first used.
- * @property {string} [transactionCountDay] Number of transactions (successful or abandoned) for this cardholder account within the last 24 hours.
- * @property {string} [transactionCountYear] Number of transactions (successful or abandoned) for this cardholder account within the last year.
- * @property {string} [addCardAttempts] Number of add card attempts in the last 24 hours.
+ * @property {string} [transactionCountDay] Number of transactions (successful or abandoned) for this cardholder account within the last 24 hours. (maximum length 3)
+ * @property {string} [transactionCountYear] Number of transactions (successful or abandoned) for this cardholder account within the last year. (maximum length 3)
+ * @property {string} [addCardAttempts] Number of add card attempts in the last 24 hours. (maximum length 3)
  * @property {string} [accountPurchases] Number of purchases with this cardholder account during the previous six months.
  * @property {string} [fraudActivity] The 2-digit value indicating whether the merchant experienced suspicious activity (including previous fraud) on the account. Possible values:
  * - `01` No suspicious activity
@@ -210,18 +210,18 @@ var FRAMEWORKS = require('./frameworks');
  * - `05` Full page
  * @property {string} [sdkMaxTimeout] The 2-digit number of minutes (minimum 05) to set the maximum amount of time for all 3DS 2.0 messages to be communicated between all components.
  * @property {string} [addressMatch] The 1-character value (Y/N) indicating whether cardholder billing and shipping addresses match.
- * @property {string} [accountId] Additional cardholder account information.
+ * @property {string} [accountId] Additional cardholder account information. (maximum length 64)
  * @property {string} [ipAddress] The IP address of the consumer. IPv4 and IPv6 are supported.
- * @property {string} [orderDescription] Brief description of items purchased.
- * @property {string} [taxAmount] Unformatted tax amount without any decimalization (ie. $123.67 = 12367).
- * @property {string} [userAgent] The exact content of the HTTP user agent header.
+ * @property {string} [orderDescription] Brief description of items purchased. (maximum length 256)
+ * @property {string} [taxAmount] Unformatted tax amount without any decimalization (ie. $123.67 = 12367). (maximum length 20)
+ * @property {string} [userAgent] The exact content of the HTTP user agent header. (maximum length 500)
  * @property {string} [authenticationIndicator] The 2-digit number indicating the type of authentication request. Possible values:
  *  - `02` Recurring
  *  - `03` Installment
- * @property {string} [installment] An integer value greater than 1 indicating the maximum number of permitted authorizations for installment payments.
+ * @property {string} [installment] An integer value greater than 1 indicating the maximum number of permitted authorizations for installment payments. (maximum length 3)
  * @property {string} [purchaseDate] The 14-digit number (format: YYYYMMDDHHMMSS) indicating the date in UTC of original purchase.
  * @property {string} [recurringEnd] The 8-digit number (format: YYYYMMDD) indicating the date after which no further recurring authorizations should be performed.
- * @property {string} [recurringFrequency] Integer value indicating the minimum number of days between recurring authorizations. A frequency of monthly is indicated by the value 28. Multiple of 28 days will be used to indicate months (ex. 6 months = 168).
+ * @property {string} [recurringFrequency] Integer value indicating the minimum number of days between recurring authorizations. A frequency of monthly is indicated by the value 28. Multiple of 28 days will be used to indicate months (ex. 6 months = 168). (maximum length 3)
  */
 
 /**
@@ -229,7 +229,12 @@ var FRAMEWORKS = require('./frameworks');
  * @function
  * @param {string} event The name of the event to which you are subscribing.
  * @param {function} handler A callback to handle the event.
- * @description Subscribes a handler function to a named event.
+ * @description Subscribes a handler function to a named event. The following events are available:
+ *   * {@link ThreeDSecure#event:lookup-complete|lookup-complete}
+ *   * {@link ThreeDSecure#event:customer-canceled|customer-canceled}
+ *   * {@link ThreeDSecure#event:authentication-iframe-available|authentication-iframe-available}
+ *   * {@link ThreeDSecure#event:authentication-modal-render|authentication-modal-render}
+ *   * {@link ThreeDSecure#event:authentication-modal-close|authentication-modal-close}
  * @example
  * <caption>Listening to a 3D Secure event</caption>
  * braintree.threeDSecure.create({ ... }, function (createErr, threeDSecureInstance) {
@@ -275,7 +280,6 @@ var FRAMEWORKS = require('./frameworks');
 /**
  * This event is emitted when the `2-inline-iframe` version is specified when creating the 3D Secure instance and the authentication iframe becomes available.
  * @event ThreeDSecure#authentication-iframe-available
- * @type {object}
  * @example
  * <caption>Listening for the authentication iframe to be available</caption>
  *   threeDSecureInstance.on('authentication-iframe-available', function (event, next) {
@@ -289,18 +293,60 @@ var FRAMEWORKS = require('./frameworks');
 /**
  * This event is emitted when using the 3D Secure 2.0 flow and the initial lookup request completes. If this is not used, a `onLookupComplete` callback must be passed into the `verifyCard` method.
  * @event ThreeDSecure#lookup-complete
- * @type {object}
  * @example
  * <caption>Listening for when the lookup request is complete</caption>
  * braintree.threeDSecure.create({
  *   client: clientInstance,
- *   version: '2-inline-iframe'
+ *   version: '2'
  * }, function (createErr, threeDSecureInstance) {
  *   threeDSecureInstance.on('lookup-complete', function (data, next) {
  *     // inspect the data
  *
  *     // call next when ready to proceed with the challenge
  *     next();
+ *   });
+ * });
+ */
+
+/**
+ * This event is emitted when using the 3D Secure 2.0 flow and the customer cancels the 3D Secure challenge.
+ * @event ThreeDSecure#customer-canceled
+ * @example
+ * <caption>Listening for when the customer cancels the 3D Secure challenge</caption>
+ * braintree.threeDSecure.create({
+ *   client: clientInstance,
+ *   version: '2'
+ * }, function (createErr, threeDSecureInstance) {
+ *   threeDSecureInstance.on('customer-canceled', function () {
+ *     // the customer canceled the 3D Secure challenge
+ *   });
+ * });
+ */
+
+/**
+ * This event is emitted when using the 3D Secure 2.0 flow and the authentication modal closes, either because the authentication was completed or because the customer canceled the process.
+ * @event ThreeDSecure#authentication-modal-close
+ * @example
+ * braintree.threeDSecure.create({
+ *   client: clientInstance,
+ *   version: '2'
+ * }, function (createErr, threeDSecureInstance) {
+ *   threeDSecureInstance.on('authentication-modal-close', function () {
+ *     // the modal was closed
+ *   });
+ * });
+ */
+
+/**
+ * This event is emitted when using the 3D Secure 2.0 flow and the authentication modal is rendered.
+ * @event ThreeDSecure#authentication-modal-render
+ * @example
+ * braintree.threeDSecure.create({
+ *   client: clientInstance,
+ *   version: '2'
+ * }, function (createErr, threeDSecureInstance) {
+ *   threeDSecureInstance.on('authentication-modal-render', function () {
+ *     // the modal was rendered, presenting the authentication form to the customer
  *   });
  * });
  */
@@ -335,11 +381,12 @@ EventEmitter.createChild(ThreeDSecure);
  * @param {string} options.nonce The nonce representing the card from a tokenization payload. For example, this can be a {@link HostedFields~tokenizePayload|tokenizePayload} returned by Hosted Fields under `payload.nonce`.
  * @param {string} options.bin The numeric Bank Identification Number (bin) of the card from a tokenization payload. For example, this can be a {@link HostedFields~tokenizePayload|tokenizePayload} returned by Hosted Fields under `payload.details.bin`.
  * @param {string} options.amount The amount of the transaction in the current merchant account's currency. This must be expressed in numbers with an optional decimal (using `.`) and precision up to the hundredths place. For example, if you're processing a transaction for 1.234,56 € then `amount` should be `1234.56`.
+ * @param {string} [options.accountType] The account type for the card (if known). Accepted values: `credit` or `debit`.
  * @param {boolean} [options.challengeRequested] If set to true, an authentication challenge will be forced if possible.
  * @param {boolean} [options.exemptionRequested] If set to true, an exemption to the authentication challenge will be requested.
  * @param {function} [options.onLookupComplete] *Deprecated:* Use {@link ThreeDSecure#event:lookup-complete|`threeDSecureInstance.on('lookup-complete')`} instead. Function to execute when lookup completes. The first argument, `data`, is a {@link ThreeDSecure~verificationData|verificationData} object, and the second argument, `next`, is a callback. `next` must be called to continue.
- * @param {string} [options.email] The email used for verification.
- * @param {string} [options.mobilePhoneNumber] The mobile phone number used for verification. Only numbers; remove dashes, parenthesis and other characters.
+ * @param {string} [options.email] The email used for verification. (maximum length 255)
+ * @param {string} [options.mobilePhoneNumber] The mobile phone number used for verification. Only numbers; remove dashes, parenthesis and other characters. (maximum length 25)
  * @param {object} [options.billingAddress] An {@link ThreeDSecure~billingAddress|billingAddress} object for verification.
  * @param {object} [options.additionalInformation] An {@link ThreeDSecure~additionalInformation|additionalInformation} object for verification.
  * @param {object} [options.customer] **Deprecated** Customer information for use in 3DS 1.0 verifications. Can contain any subset of a {@link ThreeDSecure~verifyCardCustomerObject|verifyCardCustomerObject}. Only to be used for 3DS 1.0 integrations.

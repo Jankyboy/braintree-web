@@ -62,12 +62,26 @@ function getConfiguration(authData) {
       reqOptions.metadata = analyticsMetadata;
     }
 
+    // NEXT_MAJOR_VERSION
+    // there are various issues with the config endpoint where the values returned
+    // do not match the values from the merchant account id passed into a client token
+    // we need to update the configuration request endpoint to be able to pass the
+    // correct values. The following ones are incorrect
+    // * applePayWeb - definitely supportedNetworks, which compiles all the card
+    //    networks from all the merchant accounts instead of providing just the
+    //    ones from the specified one. The same is probably true for ios apple pay
+    //    Also the merchantidentifier
+    // NEXT_MAJOR_VERSION Allow passing in merchant account id when creating the component
+    // to fetch the config for that merchant account id (particularly helpful when using
+    // a tokenization key for authorization)
     request(reqOptions, function (err, response, status) {
       var errorTemplate;
 
       if (err) {
         if (status === 403) {
           errorTemplate = errors.CLIENT_AUTHORIZATION_INSUFFICIENT;
+        } else if (status === 401) {
+          errorTemplate = errors.CLIENT_AUTHORIZATION_INVALID;
         } else {
           errorTemplate = errors.CLIENT_GATEWAY_NETWORK;
         }

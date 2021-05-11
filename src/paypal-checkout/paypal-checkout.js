@@ -12,6 +12,7 @@ var convertToBraintreeError = require('../lib/convert-to-braintree-error');
 var errors = require('./errors');
 var constants = require('../paypal/shared/constants');
 var frameService = require('../lib/frame-service/external');
+var createAuthorizationData = require('../lib/create-authorization-data');
 var methods = require('../lib/methods');
 var useMin = require('../lib/use-min');
 var convertMethodsToError = require('../lib/convert-methods-to-error');
@@ -24,6 +25,8 @@ var REQUIRED_PARAMS_FOR_START_VAULT_INITIATED_CHECKOUT = [
   'currency',
   'vaultInitiatedCheckoutPaymentMethodToken'
 ];
+
+var PAYPAL_SDK_PRELOAD_URL = 'https://www.{ENV}paypal.com/smart/buttons/preload';
 
 /**
  * PayPal Checkout tokenized payload. Returned in {@link PayPalCheckout#tokenizePayment}'s callback as the second argument, `data`.
@@ -215,9 +218,30 @@ var REQUIRED_PARAMS_FOR_START_VAULT_INITIATED_CHECKOUT = [
  */
 function PayPalCheckout(options) {
   this._merchantAccountId = options.merchantAccountId;
+  // TODO remove this requirement for it to be opt in.
+  // This feature is not yet GA, so we're intentionally making
+  // it opt in and not publicly documenting it yet. Once it's
+  // GA, we can remove the requirement to opt in to it
+  this._autoSetDataUserIdToken = Boolean(options.autoSetDataUserIdToken);
 }
 
 PayPalCheckout.prototype._initialize = function (options) {
+  var config;
+
+  if (options.client) {
+    config = options.client.getConfiguration();
+    this._authorizationInformation = {
+      fingerprint: config.authorizationFingerprint,
+      environment: config.gatewayConfiguration.environment
+    };
+  } else {
+    config = createAuthorizationData(options.authorization);
+    this._authorizationInformation = {
+      fingerprint: config.attrs.authorizationFingerprint,
+      environment: config.environment
+    };
+  }
+
   this._clientPromise = createDeferredClient.create({
     authorization: options.authorization,
     client: options.client,
@@ -356,7 +380,7 @@ PayPalCheckout.prototype._setupFrameService = function (client) {
  * `zh_HK`,
  * and `zh_TW`.
  *
- * @param {shippingOption[]} [options.shippingOptions] List of shipping options offered by the payee or merchant to the payer to ship or pick up their items.
+ * @param {shippingOption[]} [options.shippingOptions] List of shipping options offered by the payee or merchant to the payer to ship or pick up their items. **Note:** `shippingOptions` may not be passed with `intent="order"`.
  * @param {boolean} [options.enableShippingAddress=false] Returns a shipping address object in {@link PayPal#tokenize}.
  * @param {object} [options.shippingAddressOverride] Allows you to pass a shipping address you have already collected into the PayPal payment flow.
  * @param {string} options.shippingAddressOverride.line1 Street address.
@@ -480,6 +504,8 @@ PayPalCheckout.prototype._createPaymentResource = function (options, config) {
   var self = this;
   var endpoint = 'paypal_hermes/' + constants.FLOW_ENDPOINTS[options.flow];
 
+  delete this.intentFromCreatePayment;
+
   config = config || {};
 
   if (options.offerCredit === true) {
@@ -491,6 +517,10 @@ PayPalCheckout.prototype._createPaymentResource = function (options, config) {
       endpoint: endpoint,
       method: 'post',
       data: self._formatPaymentResourceData(options, config)
+    }).then(function (data) {
+      self.intentFromCreatePayment = options.intent;
+
+      return data;
     });
   }).catch(function (err) {
     var status;
@@ -774,8 +804,8 @@ PayPalCheckout.prototype.tokenizePayment = function (tokenizeOptions) {
   var shouldVault = true;
   var payload;
   var options = {
-    flow: tokenizeOptions.billingToken ? 'vault' : 'checkout',
-    intent: tokenizeOptions.intent
+    flow: tokenizeOptions.billingToken && !tokenizeOptions.paymentID ? 'vault' : 'checkout',
+    intent: tokenizeOptions.intent || this.intentFromCreatePayment
   };
   var params = {
     // The paymentToken provided by the PayPal JS SDK is the EC Token
@@ -848,14 +878,17 @@ PayPalCheckout.prototype.getClientId = function () {
 };
 
 /**
- * Resolves when the PayPal SDK has been succesfully loaded onto the page.
+ * Resolves when the PayPal SDK has been successfully loaded onto the page.
  * @public
- * @param {object} [options] A configuration object to modify the query params on the PayPal SDK. A subset of the parameters are listed below. For a full list of query params, see the [PayPal docs](https://developer.paypal.com/docs/checkout/reference/customize-sdk/?mark=query#query-parameters).
- * @param {string} [options.client-id] By default, this will be the client id associated with the authorization used to create the Braintree component. When used in conjunction with passing `authorization` when creating the PayPal Checkotu componet, you can speed up the loading of the PayPal SDK.
- * @param {string} [options.intent="authorize"] By default, the PayPal SDK defaults to an intent of `capture`. Since the default intent when calling {@link PayPalCheckout#createPayment|`createPayment`} is `authorize`, the PayPal SDK will be loaded with `intent=authorize`. If you wish to use a different intent when calling {@link PayPalCheckout#createPayment|`createPayment`}, make sure it matches here. If `sale` is used, it will be converted to `capture` for the PayPal SDK. If the `vault: true` param is used, no default intent will be passed.
+ * @param {object} [options] A configuration object to modify the query params and data-attributes on the PayPal SDK. A subset of the parameters are listed below. For a full list of query params, see the [PayPal docs](https://developer.paypal.com/docs/checkout/reference/customize-sdk/?mark=query#query-parameters).
+ * @param {string} [options.client-id] By default, this will be the client id associated with the authorization used to create the Braintree component. When used in conjunction with passing `authorization` when creating the PayPal Checkout component, you can speed up the loading of the PayPal SDK.
+ * @param {string} [options.intent="authorize"] By default, the PayPal SDK defaults to an intent of `capture`. Since the default intent when calling {@link PayPalCheckout#createPayment|`createPayment`} is `authorize`, the PayPal SDK will be loaded with `intent=authorize`. If you wish to use a different intent when calling {@link PayPalCheckout#createPayment|`createPayment`}, make sure it matches here. If `sale` is used, it will be converted to `capture` for the PayPal SDK. If the `vault: true` param is used, `tokenize` will be passed as the default intent.
  * @param {string} [options.currency="USD"] If a currency is passed in {@link PayPalCheckout#createPayment|`createPayment`}, it must match the currency passed here.
  * @param {boolean} [options.vault] Must be `true` when using `flow: vault` in {@link PayPalCheckout#createPayment|`createPayment`}.
  * @param {string} [options.components=buttons] By default, the Braintree SDK will only load the PayPal smart buttons component. If you would like to load just the [messages component](https://developer.paypal.com/docs/business/checkout/add-capabilities/credit-messaging/), pass `messages`. If you would like to load both, pass `buttons,messages`
+ * @param {object} [options.dataAttributes] The data attributes to apply to the script. Any data attribute can be passed. A subset of the parameters are listed below. For a full list of data attributes, see the [PayPal docs](https://developer.paypal.com/docs/checkout/reference/customize-sdk/#script-parameters).
+ * @param {string} [options.dataAttributes.data-client-token] The client token to use in the script. (usually not needed)
+ * @param {string} [options.dataAttributes.csp-nonce] See the [PayPal docs about content security nonces](https://developer.paypal.com/docs/checkout/reference/customize-sdk/#csp-nonce).
  * @param {callback} [callback] Called when the PayPal SDK has been loaded onto the page. The second argument is the PayPal Checkout instance. If no callback is provided, the promise resolves with the PayPal Checkout instance when the PayPal SDK has been loaded onto the page.
  * @returns {(Promise|void)} Returns a promise if no callback is provided.
  * @example <caption>Without options</caption>
@@ -879,16 +912,38 @@ PayPalCheckout.prototype.getClientId = function () {
  * });
  */
 PayPalCheckout.prototype.loadPayPalSDK = function (options) {
-  var idPromise, src;
+  var idPromise, src, userIdToken;
   var loadPromise = new ExtendedPromise();
+  var dataAttributes = options && options.dataAttributes;
+
+  if (dataAttributes && dataAttributes['user-id-token']) {
+    userIdToken = dataAttributes['user-id-token'];
+  } else {
+    userIdToken = this._authorizationInformation.fingerprint && this._authorizationInformation.fingerprint.split('?')[0];
+  }
 
   this._paypalScript = document.createElement('script');
 
+  // NEXT_MAJOR_VERSION
+  // this options object should have 2 properties:
+  // * queryParams
+  // * dataAttributes
+  // should make organizing this better than squashing
+  // all the query params at the top level and extracting
+  // the data attributes
   options = assign({}, {
     components: 'buttons'
   }, options);
+  delete options.dataAttributes;
 
-  if (!options.vault) {
+  // NEXT_MAJOR_VERSION if merchant passes an explicit intent,
+  // currency, amount, etc, save those for use in createPayment
+  // if no explicit param of that type is passed in when calling
+  // createPayment to reduce the number of items that need to be
+  // duplicated here and in createPayment
+  if (options.vault) {
+    options.intent = options.intent || 'tokenize';
+  } else {
     options.intent = options.intent || 'authorize';
     options.currency = options.currency || 'USD';
   }
@@ -898,28 +953,68 @@ PayPalCheckout.prototype.loadPayPalSDK = function (options) {
     loadPromise.resolve();
   };
 
+  if (dataAttributes) {
+    Object.keys(dataAttributes).forEach(function (attribute) {
+      this._paypalScript.setAttribute('data-' + attribute, dataAttributes[attribute]);
+    }.bind(this));
+  }
+
   if (options['client-id']) {
     idPromise = Promise.resolve(options['client-id']);
   } else {
-    idPromise = this.getClientId().then(function (id) {
-      if (this._configuration.gatewayConfiguration.environment !== 'production') {
-        return 'sb';
-      }
-
-      return id;
-    }.bind(this));
+    idPromise = this.getClientId();
   }
 
   idPromise.then(function (id) {
     options['client-id'] = id;
 
+    if (this._autoSetDataUserIdToken && userIdToken) {
+      this._paypalScript.setAttribute('data-user-id-token', userIdToken);
+
+      // preloading improves the rendering time of the PayPal button
+      this._attachPreloadPixel({
+        id: id,
+        userIdToken: userIdToken,
+        amount: dataAttributes && dataAttributes.amount,
+        currency: options.currency,
+        merchantId: options['merchant-id']
+      });
+    }
+
     this._paypalScript.src = querystring.queryify(src, options);
-    document.body.appendChild(this._paypalScript);
+    document.head.insertBefore(this._paypalScript, document.head.firstElementChild);
   }.bind(this));
 
   return loadPromise.then(function () {
     return this;
   }.bind(this));
+};
+
+PayPalCheckout.prototype._attachPreloadPixel = function (options) {
+  var request;
+  var id = options.id;
+  var userIdToken = options.userIdToken;
+  var env = this._authorizationInformation.environment;
+  var subdomain = env === 'production' ? '' : 'sandbox.';
+  var url = PAYPAL_SDK_PRELOAD_URL.replace('{ENV}', subdomain);
+  var preloadOptions = {
+    'client-id': id,
+    'user-id-token': userIdToken
+  };
+
+  if (options.amount) {
+    preloadOptions.amount = options.amount;
+  }
+  if (options.currency) {
+    preloadOptions.currency = options.currency;
+  }
+  if (options.merchantId) {
+    preloadOptions['merchant-id'] = options.merchantId;
+  }
+
+  request = new XMLHttpRequest();
+  request.open('GET', querystring.queryify(url, preloadOptions));
+  request.send();
 };
 
 PayPalCheckout.prototype._formatPaymentResourceData = function (options, config) {
@@ -997,16 +1092,17 @@ PayPalCheckout.prototype._formatTokenizeData = function (options, params) {
   var clientConfiguration = this._configuration;
   var gatewayConfiguration = clientConfiguration.gatewayConfiguration;
   var isTokenizationKey = clientConfiguration.authorizationType === 'TOKENIZATION_KEY';
+  var isVaultFlow = options.flow === 'vault';
   var data = {
     paypalAccount: {
       correlationId: params.billingToken || params.ecToken,
       options: {
-        validate: options.flow === 'vault' && !isTokenizationKey && options.vault
+        validate: isVaultFlow && !isTokenizationKey && options.vault
       }
     }
   };
 
-  if (params.billingToken) {
+  if (isVaultFlow) {
     data.paypalAccount.billingAgreementToken = params.billingToken;
   } else {
     data.paypalAccount.paymentToken = params.paymentId;
@@ -1071,13 +1167,23 @@ PayPalCheckout.prototype._formatTokenizePayload = function (response) {
  * @returns {(Promise|void)} Returns a promise if no callback is provided.
  */
 PayPalCheckout.prototype.teardown = function () {
+  var self = this;
+
   convertMethodsToError(this, methods(PayPalCheckout.prototype));
 
   if (this._paypalScript && this._paypalScript.parentNode) {
     this._paypalScript.parentNode.removeChild(this._paypalScript);
   }
 
-  return Promise.resolve();
+  return this._frameServicePromise.catch(function () {
+    // no need to error in teardown for an error setting up the frame service
+  }).then(function () {
+    if (!self._frameService) {
+      return Promise.resolve();
+    }
+
+    return self._frameService.teardown();
+  });
 };
 
 module.exports = wrapPromise.wrapPrototype(PayPalCheckout);

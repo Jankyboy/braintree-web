@@ -1,7 +1,7 @@
 'use strict';
 
 var assign = require('../../lib/assign').assign;
-var Bus = require('../../lib/bus');
+var Bus = require('framebus');
 var Promise = require('../../lib/promise');
 var convertToBraintreeError = require('../../lib/convert-to-braintree-error');
 var frameName = require('./get-frame-name');
@@ -55,17 +55,16 @@ function initialize(cardForm) {
   );
 
   fieldComponent = new FieldComponent({
+    componentId: location.hash.slice(1, location.hash.length),
     cardForm: cardForm,
     type: name
   });
 
   form.appendChild(fieldComponent.element);
 
-  if (name === 'number' && !cardForm.configuration.preventAutofill) {
-    createInputsForAutofill(form);
+  if (!cardForm.configuration.preventAutofill) {
+    createInputsForAutofill(fieldComponent, form, cardForm);
   }
-
-  window.bus.on(events.AUTOFILL_DATA_AVAILABLE, autofillHandler(fieldComponent));
 
   window.bus.on(events.REMOVE_FOCUS_INTERCEPTS, function (data) {
     focusIntercept.destroy(data && data.id);
@@ -136,93 +135,96 @@ function fix1PasswordAdjustment(form) {
   form.style.position = 'absolute';
 }
 
-function createInputsForAutofill(form) {
+function createInputsForAutofill(fieldComponent, form, cardModel) {
+  var name = frameName.getFrameName();
   var cachedValues = {
+    cardholderName: '',
+    number: '',
     month: '',
     year: '',
     cvv: ''
   };
+  var cardholderName = makeMockInput('cardholder-name');
+  var number = makeMockInput('credit-card-number');
   var expMonth = makeMockInput('expiration-month');
   var expYear = makeMockInput('expiration-year');
   var cvv = makeMockInput('cvv');
+  var cardholderNameInput = cardholderName.querySelector('input');
+  var numberInput = number.querySelector('input');
   var expMonthInput = expMonth.querySelector('input');
   var expYearInput = expYear.querySelector('input');
   var cvvInput = cvv.querySelector('input');
 
+  // we want to reset the autofill fields when the real
+  // hosted fields input changes so we can re-send new
+  // autofill events
+  fieldComponent.input.element.addEventListener('input', function () {
+    cardholderNameInput.value = '';
+    numberInput.value = '';
+    expMonthInput.value = '';
+    expYearInput.value = '';
+    cvvInput.value = '';
+    cachedValues.cardholderName = '';
+    cachedValues.number = '';
+    cachedValues.month = '';
+    cachedValues.year = '';
+    cachedValues.cvv = '';
+  });
+
   setInterval(function () {
+    var thisYear;
+    var nameValue = cardholderNameInput.value;
+    var numberValue = numberInput.value;
+    var monthValue = expMonthInput.value;
+    var yearValue = expYearInput.value;
+    var cvvValue = cvvInput.value;
+
+    if (monthValue && monthValue.length === 1) {
+      monthValue = '0' + monthValue;
+    }
+    if (yearValue && yearValue.length === 2) {
+      thisYear = String((new Date()).getFullYear()); // eslint-disable-line no-extra-parens
+      yearValue = thisYear.substring(0, 2) + yearValue;
+    }
+
     if (
-      cachedValues.month !== expMonthInput.value ||
-      cachedValues.year !== expYearInput.value ||
-      cachedValues.cvv !== cvvInput.value
+      (nameValue && cachedValues.cardholderName !== nameValue) ||
+      (numberValue && cachedValues.number !== numberValue) ||
+      (monthValue && cachedValues.month !== monthValue) ||
+      (yearValue && cachedValues.year !== yearValue) ||
+      (cvvValue && cachedValues.cvv !== cvvValue)
     ) {
-      cachedValues.month = expMonthInput.value;
-      cachedValues.year = expYearInput.value;
-      cachedValues.cvv = cvvInput.value;
+      cachedValues.cardholderName = nameValue;
+      cachedValues.number = numberValue;
+      cachedValues.month = monthValue;
+      cachedValues.year = yearValue;
+      cachedValues.cvv = cvvValue;
 
       fix1PasswordAdjustment(form);
-      window.bus.emit(events.AUTOFILL_DATA_AVAILABLE, {
-        month: expMonthInput.value,
-        year: expYearInput.value,
-        cvv: cvvInput.value
+      cardModel.applyAutofillValues({
+        cardholderName: nameValue,
+        number: numberValue,
+        expirationMonth: monthValue,
+        expirationYear: yearValue,
+        cvv: cvvValue
       });
     }
   }, CHECK_FOR_NEW_AUTOFILL_DATA_INTERVAL);
 
-  form.appendChild(expMonth);
-  form.appendChild(expYear);
-  form.appendChild(cvv);
-}
-
-function autofillHandler(fieldComponent) {
-  return function (payload) {
-    var name, value, month, year, cvv, thisYear;
-
-    if (!payload || !payload.month || !payload.year) {
-      return;
-    }
-
-    name = frameName.getFrameName();
-    month = payload.month;
-    year = payload.year;
-    cvv = payload.cvv;
-
-    if (year.length === 2) {
-      thisYear = String((new Date()).getFullYear()); // eslint-disable-line no-extra-parens
-      year = thisYear.substring(0, 2) + year;
-    }
-
-    if (name === 'expirationDate') {
-      value = month + ' / ' + year;
-    } else if (name === 'expirationMonth') {
-      value = month;
-    } else if (name === 'expirationYear') {
-      value = year;
-    } else if (name === 'cvv' && cvv) {
-      value = cvv;
-    }
-
-    if (value) {
-      fieldComponent.input.updateModel('value', value);
-
-      if (fieldComponent.input.shouldMask) {
-        fieldComponent.input.maskValue(value);
-      } else {
-        fieldComponent.input.element.value = value;
-      }
-
-      resetPlaceholder(fieldComponent.input.element);
-    }
-  };
-}
-
-function resetPlaceholder(element) {
-  // Safari leaves the placholder visible in the iframe, we
-  // compensate for this by removing and re-setting the placeholder
-  var placeholder = element.getAttribute('placeholder');
-
-  if (placeholder) {
-    element.setAttribute('placeholder', '');
-    element.setAttribute('placeholder', placeholder);
+  if (name !== 'cardholderName') {
+    form.appendChild(cardholderName);
+  }
+  if (name !== 'number') {
+    form.appendChild(number);
+  }
+  if (name !== 'expirationDate' && name !== 'expirationMonth') {
+    form.appendChild(expMonth);
+  }
+  if (name !== 'expirationDate' && name !== 'expirationYear') {
+    form.appendChild(expYear);
+  }
+  if (name !== 'cvv') {
+    form.appendChild(cvv);
   }
 }
 
@@ -448,6 +450,5 @@ module.exports = {
   initialize: initialize,
   create: create,
   orchestrate: orchestrate,
-  createTokenizationHandler: createTokenizationHandler,
-  autofillHandler: autofillHandler
+  createTokenizationHandler: createTokenizationHandler
 };
